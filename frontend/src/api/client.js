@@ -17,12 +17,26 @@ class ApiError extends Error {
 let cachedCsrfToken = null;
 let cachedCsrfHeaderName = 'X-CSRF-TOKEN';
 
+const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL
+  ? import.meta.env.VITE_API_URL
+  : ''
+).replace(/\/+$/, '');
+
+function formatUrl(endpoint) {
+  if (!endpoint) return '';
+  if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+    return endpoint;
+  }
+  const cleanPath = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${API_BASE_URL}${cleanPath}`;
+}
+
 /**
  * Retrieves a fresh CSRF token from GET /api/csrf with credentials included.
  */
 export async function fetchCsrfToken() {
   try {
-    const response = await fetch('/api/csrf', {
+    const response = await fetch(formatUrl('/api/csrf'), {
       method: 'GET',
       credentials: 'include',
       headers: {
@@ -108,7 +122,7 @@ async function request(endpoint, options = {}) {
 
   let response;
   try {
-    response = await fetch(endpoint, fetchOptions);
+    response = await fetch(formatUrl(endpoint), fetchOptions);
   } catch (networkError) {
     throw new ApiError(
       'Network error: Unable to reach VYNK server. Please check your connection.',
