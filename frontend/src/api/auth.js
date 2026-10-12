@@ -40,6 +40,34 @@ export const authApi = {
   },
 
   /**
+   * Verifies a student's 6-digit email OTP code.
+   * @param {{ email: string, otp: string } | string} emailOrPayload
+   * @param {string} [otp]
+   */
+  verifyOtp(emailOrPayload, otp) {
+    const payload = typeof emailOrPayload === 'object' && emailOrPayload !== null
+      ? emailOrPayload
+      : { email: emailOrPayload, otp };
+    return apiClient.post('/api/auth/verify-otp', {
+      email: payload.email.trim(),
+      otp: String(payload.otp || '').trim(),
+    });
+  },
+
+  /**
+   * Requests a new 6-digit OTP code for an unverified student account.
+   * @param {{ email: string } | string} emailOrPayload
+   */
+  resendOtp(emailOrPayload) {
+    const email = typeof emailOrPayload === 'object' && emailOrPayload !== null
+      ? emailOrPayload.email
+      : emailOrPayload;
+    return apiClient.post('/api/auth/resend-otp', {
+      email: String(email || '').trim(),
+    });
+  },
+
+  /**
    * Verifies an email token via POST request to prevent scanner consumption.
    * @param {string} token
    */

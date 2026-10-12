@@ -191,6 +191,59 @@
       "type": "java.lang.Long",
       "description": "Maximum allowed file size in bytes for uploaded attachments.",
       "defaultValue": 5242880
+    },
+    {
+      "name": "vynk.resend.api-key",
+      "type": "java.lang.String",
+      "description": "API key for Resend email service HTTPS REST API.",
+      "defaultValue": ""
+    },
+    {
+      "name": "vynk.resend.from-email",
+      "type": "java.lang.String",
+      "description": "Configured sender email address for Resend delivery.",
+      "defaultValue": "onboarding@resend.dev"
+    },
+    {
+      "name": "vynk.resend.api-url",
+      "type": "java.lang.String",
+      "description": "API endpoint URL for Resend email dispatch.",
+      "defaultValue": "https://api.resend.com/emails"
+    },
+    {
+      "name": "vynk.resend.timeout-seconds",
+      "type": "java.lang.Long",
+      "description": "Timeout in seconds for Resend API requests.",
+      "defaultValue": 10
+    },
+    {
+      "name": "vynk.resend.simulation-mode",
+      "type": "java.lang.Boolean",
+      "description": "Toggle to simulate email delivery without calling external Resend API.",
+      "defaultValue": false
+    },
+    {
+      "name": "vynk.otp.pepper",
+      "type": "java.lang.String",
+      "description": "Server-side secret pepper for HMAC-SHA256 OTP hashing (required in production; generate via openssl rand -hex 32)."
+    },
+    {
+      "name": "vynk.otp.expiry-minutes",
+      "type": "java.lang.Integer",
+      "description": "Validity period in minutes for email verification OTPs.",
+      "defaultValue": 5
+    },
+    {
+      "name": "vynk.otp.resend-cooldown-seconds",
+      "type": "java.lang.Integer",
+      "description": "Cooldown duration in seconds before allowing an OTP resend.",
+      "defaultValue": 60
+    },
+    {
+      "name": "vynk.otp.max-attempts",
+      "type": "java.lang.Integer",
+      "description": "Maximum failed verification attempts allowed before OTP lockout.",
+      "defaultValue": 5
     }
   ]
 }

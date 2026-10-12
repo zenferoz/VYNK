@@ -101,6 +101,8 @@ public class SecurityConfig {
                 .ignoringRequestMatchers(
                     "/api/auth/register",
                     "/api/auth/login",
+                    "/api/auth/verify-otp",
+                    "/api/auth/resend-otp",
                     "/api/auth/verify-email",
                     "/api/auth/resend-verification",
                     "/api/auth/forgot-password",

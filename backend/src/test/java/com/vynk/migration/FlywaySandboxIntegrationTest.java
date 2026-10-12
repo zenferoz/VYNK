@@ -41,7 +41,7 @@ public class FlywaySandboxIntegrationTest {
         MigrateResult result = flyway.migrate();
         assertTrue(result.success, "Flyway migration should succeed");
         String currentVersion = flyway.info().current() != null ? flyway.info().current().getVersion().getVersion() : result.targetSchemaVersion;
-        assertEquals("1.0.1", currentVersion, "Current schema version should be 1.0.1 after V1.0.1 migration");
+        assertEquals("1.0.2", currentVersion, "Current schema version should be 1.0.2 after V1.0.2 migration");
 
         // Verify flyway_schema_history table
         try (Connection conn = DriverManager.getConnection(FRESH_SANDBOX_URL, DB_USER, DB_PASSWORD);
@@ -56,9 +56,14 @@ public class FlywaySandboxIntegrationTest {
             assertEquals("1.0.1", rs.getString("version"));
             assertEquals("password reset tokens", rs.getString("description"));
             assertEquals(1, rs.getInt("success"));
+
+            assertTrue(rs.next(), "flyway_schema_history should contain V1.0.2 record");
+            assertEquals("1.0.2", rs.getString("version"));
+            assertEquals("email verification otps", rs.getString("description"));
+            assertEquals(1, rs.getInt("success"));
         }
 
-        // Verify all 19 application tables + flyway_schema_history exist
+        // Verify all 20 application tables + flyway_schema_history exist
         List<String> tables = new ArrayList<>();
         try (Connection conn = DriverManager.getConnection(FRESH_SANDBOX_URL, DB_USER, DB_PASSWORD);
              Statement stmt = conn.createStatement();
@@ -67,18 +72,19 @@ public class FlywaySandboxIntegrationTest {
                 tables.add(rs.getString(1));
             }
         }
-        assertEquals(20, tables.size(), "Expected 19 application tables + 1 flyway_schema_history table");
+        assertEquals(21, tables.size(), "Expected 20 application tables + 1 flyway_schema_history table");
         assertTrue(tables.contains("colleges"));
         assertTrue(tables.contains("users"));
         assertTrue(tables.contains("student_profiles"));
         assertTrue(tables.contains("communities"));
         assertTrue(tables.contains("password_reset_tokens"));
+        assertTrue(tables.contains("email_verification_otps"));
         assertTrue(tables.contains("flyway_schema_history"));
     }
 
     @Test
     @Order(2)
-    @DisplayName("Existing Sandbox: Flyway baseline-on-migrate establishes baseline metadata and migrates V1.0.1")
+    @DisplayName("Existing Sandbox: Flyway baseline-on-migrate establishes baseline metadata and migrates V1.0.1 and V1.0.2")
     void testExistingSandboxBaselineBehavior() throws Exception {
         assertNotNull(DB_PASSWORD, "DB_PASSWORD environment variable must be set");
 
@@ -90,11 +96,11 @@ public class FlywaySandboxIntegrationTest {
                 .load();
 
         MigrateResult result = flyway.migrate();
-        assertTrue(result.success, "Flyway baseline and V1.0.1 migration should succeed");
+        assertTrue(result.success, "Flyway baseline and V1.0.1/V1.0.2 migrations should succeed");
         String currentVersion = flyway.info().current() != null ? flyway.info().current().getVersion().getVersion() : result.targetSchemaVersion;
-        assertEquals("1.0.1", currentVersion, "Current schema version should be 1.0.1 after V1.0.1 migration");
+        assertEquals("1.0.2", currentVersion, "Current schema version should be 1.0.2 after V1.0.2 migration");
 
-        // Verify flyway_schema_history table contains BASELINE record and V1.0.1 record
+        // Verify flyway_schema_history table contains BASELINE record, V1.0.1, and V1.0.2
         try (Connection conn = DriverManager.getConnection(EXISTING_SANDBOX_URL, DB_USER, DB_PASSWORD);
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery("SELECT version, description, type, success FROM flyway_schema_history ORDER BY installed_rank")) {
@@ -105,6 +111,11 @@ public class FlywaySandboxIntegrationTest {
 
             assertTrue(rs.next(), "flyway_schema_history should contain V1.0.1 record");
             assertEquals("1.0.1", rs.getString("version"));
+            assertEquals("SQL", rs.getString("type"));
+            assertEquals(1, rs.getInt("success"));
+
+            assertTrue(rs.next(), "flyway_schema_history should contain V1.0.2 record");
+            assertEquals("1.0.2", rs.getString("version"));
             assertEquals("SQL", rs.getString("type"));
             assertEquals(1, rs.getInt("success"));
         }

@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/profile")
+@RequestMapping("/api/profile/me")
 public class StudentProfileController {
 
     private final StudentProfileService studentProfileService;
@@ -29,14 +29,14 @@ public class StudentProfileController {
         this.userRepository = userRepository;
     }
 
-    @GetMapping("/me")
+    @GetMapping
     public ResponseEntity<StudentProfileResponse> getMyProfile(Authentication authentication) {
         User user = getCurrentAuthenticatedUser(authentication);
         StudentProfileResponse response = studentProfileService.getProfileResponseForUser(user.getId());
         return ResponseEntity.ok(response);
     }
 
-    @PutMapping("/me")
+    @PutMapping
     public ResponseEntity<StudentProfileResponse> updateMyProfile(
             @Valid @RequestBody UpdateStudentProfileRequest request,
             Authentication authentication) {

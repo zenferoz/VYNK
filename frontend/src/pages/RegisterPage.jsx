@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { collegesApi } from '../api/colleges';
 import { authApi } from '../api/auth';
 import { InputField } from '../components/forms/InputField';
@@ -9,6 +9,7 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { VynkLogo } from '../components/common/VynkLogo';
 
 export function RegisterPage() {
+  const navigate = useNavigate();
   const [colleges, setColleges] = useState([]);
   const [collegesLoading, setCollegesLoading] = useState(true);
   const [collegesError, setCollegesError] = useState('');
@@ -95,6 +96,9 @@ export function RegisterPage() {
         collegeId: Number(formData.collegeId),
       });
       setSuccessResponse(res);
+      navigate(`/verify-email?email=${encodeURIComponent(formData.email.trim())}`, {
+        state: { email: formData.email.trim() }
+      });
     } catch (err) {
       if (err.details) {
         setFieldErrors(err.details);
@@ -115,17 +119,21 @@ export function RegisterPage() {
           </div>
           <h2 className="card-title">Check Your College Inbox</h2>
           <p style={{ marginTop: '0.75rem', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
-            {successResponse.message || 'Registration successful. Email verification is pending.'}
+            {successResponse.message || 'Registration successful. Verification code sent.'}
           </p>
           <div className="alert alert-info" style={{ marginTop: '1.5rem', textAlign: 'left' }}>
             <div>
-              <strong>Next Step:</strong> We sent a secure verification link to{' '}
-              <strong>{formData.email}</strong>. Please click the link in your email within 24 hours to activate your account.
+              <strong>Next Step:</strong> We sent a 6-digit verification code to{' '}
+              <strong>{formData.email}</strong>. Enter the code to activate your account.
             </div>
           </div>
           <div style={{ marginTop: '2rem' }}>
-            <Link to="/login" className="btn btn-primary btn-block">
-              Proceed to Sign In
+            <Link
+              to={`/verify-email?email=${encodeURIComponent(formData.email.trim())}`}
+              state={{ email: formData.email.trim() }}
+              className="btn btn-primary btn-block"
+            >
+              Enter Verification Code &rarr;
             </Link>
           </div>
         </div>

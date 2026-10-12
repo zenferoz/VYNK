@@ -4,7 +4,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import com.vynk.common.exception.ResourceNotFoundException;
-import com.vynk.profile.entity.StudentProfile;
 import com.vynk.profile.repository.StudentProfileRepository;
 import com.vynk.user.entity.User;
 import com.vynk.user.repository.UserRepository;

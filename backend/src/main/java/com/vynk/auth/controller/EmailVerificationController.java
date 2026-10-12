@@ -1,17 +1,18 @@
-
 package com.vynk.auth.controller;
 
+import com.vynk.auth.dto.ResendOtpRequest;
 import com.vynk.auth.dto.ResendVerificationRequest;
 import com.vynk.auth.dto.VerifyEmailRequest;
+import com.vynk.auth.dto.VerifyOtpRequest;
 import com.vynk.auth.service.EmailVerificationService;
+import com.vynk.security.ratelimit.RateLimitingService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
@@ -20,24 +21,58 @@ import java.util.Map;
 public class EmailVerificationController {
 
     private final EmailVerificationService emailVerificationService;
-    private final com.vynk.security.ratelimit.RateLimitingService rateLimitingService;
+    private final RateLimitingService rateLimitingService;
 
     public EmailVerificationController(
             EmailVerificationService emailVerificationService) {
         this(emailVerificationService, null);
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public EmailVerificationController(
             EmailVerificationService emailVerificationService,
-            com.vynk.security.ratelimit.RateLimitingService rateLimitingService) {
+            @Autowired(required = false) RateLimitingService rateLimitingService) {
         this.emailVerificationService = emailVerificationService;
         this.rateLimitingService = rateLimitingService;
     }
 
+    @PostMapping("/verify-otp")
+    public ResponseEntity<Map<String, String>> verifyOtp(
+            @Valid @RequestBody VerifyOtpRequest request,
+            HttpServletRequest httpRequest) {
+
+        if (rateLimitingService != null) {
+            String clientIp = resolveClientIp(httpRequest);
+            rateLimitingService.checkLimit("verify-otp", clientIp, 10, 60);
+        }
+
+        emailVerificationService.verifyOtp(request.getEmail(), request.getOtp());
+
+        return ResponseEntity.ok(
+                Map.of("message", "Email verified successfully! Your VYNK account is now active.")
+        );
+    }
+
+    @PostMapping("/resend-otp")
+    public ResponseEntity<Map<String, String>> resendOtp(
+            @Valid @RequestBody ResendOtpRequest request,
+            HttpServletRequest httpRequest) {
+
+        if (rateLimitingService != null) {
+            String clientIp = resolveClientIp(httpRequest);
+            rateLimitingService.checkLimit("resend-otp", clientIp, 3, 60);
+        }
+
+        emailVerificationService.resendOtp(request.getEmail());
+
+        return ResponseEntity.ok(
+                Map.of("message", "If an eligible unverified account exists for this email, a verification code has been sent.")
+        );
+    }
+
     @GetMapping("/verify-email")
     public ResponseEntity<Map<String, String>> verifyEmailGet() {
-        return ResponseEntity.status(org.springframework.http.HttpStatus.METHOD_NOT_ALLOWED).body(
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(
                 Map.of("message", "Email verification requires explicit confirmation via POST.")
         );
     }
@@ -56,17 +91,29 @@ public class EmailVerificationController {
     @PostMapping("/resend-verification")
     public ResponseEntity<Map<String, String>> resendVerification(
             @Valid @RequestBody ResendVerificationRequest request,
-            jakarta.servlet.http.HttpServletRequest httpRequest) {
+            HttpServletRequest httpRequest) {
 
         if (rateLimitingService != null) {
-            String clientIp = httpRequest != null && httpRequest.getRemoteAddr() != null ? httpRequest.getRemoteAddr() : "anonymous";
+            String clientIp = resolveClientIp(httpRequest);
             rateLimitingService.checkLimit("resend-verification", clientIp, 3, 60);
         }
 
-        emailVerificationService.resendVerificationToken(request.getEmail());
+        emailVerificationService.resendOtp(request.getEmail());
 
         return ResponseEntity.ok(
-                Map.of("message", "If an eligible unverified account exists for this email, a verification link has been sent.")
+                Map.of("message", "If an eligible unverified account exists for this email, a verification code has been sent.")
         );
+    }
+
+    private String resolveClientIp(HttpServletRequest request) {
+        if (request == null) {
+            return "anonymous";
+        }
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isBlank()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+        String remoteAddr = request.getRemoteAddr();
+        return remoteAddr != null && !remoteAddr.isBlank() ? remoteAddr : "anonymous";
     }
 }

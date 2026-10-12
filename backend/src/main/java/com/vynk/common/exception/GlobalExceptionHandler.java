@@ -125,6 +125,33 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
+    @ExceptionHandler(com.vynk.auth.email.EmailDeliveryException.class)
+    public ResponseEntity<Map<String, Object>> handleEmailDeliveryException(
+            com.vynk.auth.email.EmailDeliveryException ex) {
+
+        log.error("Failed to deliver email: {}", ex.getMessage());
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.SERVICE_UNAVAILABLE.value());
+        body.put("error", "Service Unavailable");
+        body.put("message", "Email delivery service is currently unavailable. Please try again shortly.");
+
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(body);
+    }
+
+    @ExceptionHandler(org.springframework.transaction.TransactionSystemException.class)
+    public ResponseEntity<Map<String, Object>> handleTransactionSystemException(
+            org.springframework.transaction.TransactionSystemException ex) {
+
+        Throwable rootCause = ex.getRootCause();
+        if (rootCause instanceof com.vynk.auth.email.EmailDeliveryException emailEx) {
+            return handleEmailDeliveryException(emailEx);
+        }
+
+        return handleGenericException(ex);
+    }
+
     @ExceptionHandler(org.springframework.mail.MailException.class)
     public ResponseEntity<Map<String, Object>> handleMailException(
             org.springframework.mail.MailException ex) {

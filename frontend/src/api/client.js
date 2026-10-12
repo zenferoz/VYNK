@@ -73,6 +73,8 @@ function isCsrfExempt(url) {
   return (
     url.includes('/api/auth/register') ||
     url.includes('/api/auth/login') ||
+    url.includes('/api/auth/verify-otp') ||
+    url.includes('/api/auth/resend-otp') ||
     url.includes('/api/auth/verify-email') ||
     url.includes('/api/auth/resend-verification') ||
     url.includes('/api/auth/forgot-password') ||

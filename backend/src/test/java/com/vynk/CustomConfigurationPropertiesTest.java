@@ -55,5 +55,17 @@ public class CustomConfigurationPropertiesTest {
         String expectedUploadDir = System.getProperty("user.home") + "/.vynk/uploads";
         assertEquals(expectedUploadDir, environment.getProperty("vynk.files.upload-dir"));
         assertEquals("5242880", environment.getProperty("vynk.files.max-size-bytes"));
+
+        // vynk.resend.* properties
+        assertEquals("onboarding@resend.dev", environment.getProperty("vynk.resend.from-email"));
+        assertEquals("https://api.resend.com/emails", environment.getProperty("vynk.resend.api-url"));
+        assertEquals("10", environment.getProperty("vynk.resend.timeout-seconds"));
+        assertEquals("false", environment.getProperty("vynk.resend.simulation-mode"));
+
+        // vynk.otp.* properties (must have NO hardcoded fallback in production properties)
+        assertEquals("", environment.getProperty("vynk.otp.pepper"));
+        assertEquals("5", environment.getProperty("vynk.otp.expiry-minutes"));
+        assertEquals("60", environment.getProperty("vynk.otp.resend-cooldown-seconds"));
+        assertEquals("5", environment.getProperty("vynk.otp.max-attempts"));
     }
 }
