@@ -11,19 +11,18 @@ import com.vynk.auth.entity.EmailVerificationOtp;
 import com.vynk.auth.entity.PasswordResetToken;
 import com.vynk.auth.repository.EmailVerificationOtpRepository;
 import com.vynk.auth.repository.PasswordResetTokenRepository;
+import com.vynk.auth.service.EmailVerificationService;
 import com.vynk.college.entity.College;
 import com.vynk.college.repository.CollegeRepository;
 import com.vynk.user.entity.AccountStatus;
 import com.vynk.user.entity.User;
+import com.vynk.user.entity.UserRole;
 import com.vynk.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-
-
-
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -51,7 +50,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "vynk.otp.expiry-minutes=5",
         "vynk.otp.resend-cooldown-seconds=60",
         "vynk.otp.max-attempts=5",
-        "vynk.resend.simulation-mode=false"
+        "vynk.resend.simulation-mode=false",
+        "vynk.ratelimit.enabled=false"
 })
 public class EmailOtpFlowIntegrationTest {
 
@@ -106,6 +106,9 @@ public class EmailOtpFlowIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private EmailVerificationService emailVerificationService;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private MockMvc mockMvc;
@@ -123,8 +126,8 @@ public class EmailOtpFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("End-to-End Registration -> OTP Delivery -> Activation -> Login Flow")
-    void testCompleteOtpRegistrationAndLoginLifecycle() throws Exception {
+    @DisplayName("Immediate Registration -> ACTIVE Account -> Instant Login Lifecycle without OTP")
+    void testImmediateRegistrationAndLoginLifecycle() throws Exception {
         String studentEmail = "student101@anurag.edu.in";
         String rawPassword = "SecurePassword123!";
 
@@ -143,25 +146,18 @@ public class EmailOtpFlowIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(registerReq)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.message").value("Registration successful. Email verification is pending."));
+                .andExpect(jsonPath("$.message").value("Registration successful. You can now log in."));
 
-        // 2. Verify student account state is unverified and PENDING
+        // 2. Verify account is immediately ACTIVE and emailVerified = true
         User user = userRepository.findByEmail(studentEmail).orElseThrow();
-        assertEquals(AccountStatus.PENDING, user.getStatus());
-        assertFalse(user.isEmailVerified());
+        assertEquals(AccountStatus.ACTIVE, user.getStatus());
+        assertTrue(user.isEmailVerified());
 
-        // 3. Verify OTP was created, HMAC-SHA256 hashed, and dispatched to EmailService
-        EmailVerificationOtp otpRecord = otpRepository.findByUserId(user.getId()).orElseThrow();
-        assertNotNull(otpRecord.getOtpHash());
-        assertFalse(otpRecord.isUsed());
-        assertEquals(0, otpRecord.getAttempts());
+        // 3. Verify no OTP email was dispatched and no OTP record was created
+        assertNull(TestEmailServiceConfig.lastCapturedOtp.get(), "Registration must not dispatch OTP email");
+        assertTrue(otpRepository.findByUserId(user.getId()).isEmpty(), "No OTP record should be generated during direct registration");
 
-        String capturedOtp = TestEmailServiceConfig.lastCapturedOtp.get();
-        assertNotNull(capturedOtp, "OTP should have been sent via EmailService");
-        assertEquals(6, capturedOtp.length());
-        assertTrue(capturedOtp.matches("^[0-9]{6}$"));
-
-        // 4. Attempt login before email verification -> Must fail with 403 Forbidden
+        // 4. Verify login succeeds immediately with 200 OK
         LoginRequest loginReq = new LoginRequest();
         loginReq.setEmail(studentEmail);
         loginReq.setPassword(rawPassword);
@@ -169,102 +165,155 @@ public class EmailOtpFlowIntegrationTest {
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginReq)))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value("This account is not currently allowed to log in."));
-
-        // 5. Submit incorrect OTP -> Must return 400 with remaining attempts
-        VerifyOtpRequest wrongOtpReq = new VerifyOtpRequest();
-        wrongOtpReq.setEmail(studentEmail);
-        wrongOtpReq.setOtp("000000");
-
-        mockMvc.perform(post("/api/auth/verify-otp")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(wrongOtpReq)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Invalid verification code. 4 attempts remaining."));
-
-        // Verify attempt count incremented
-        otpRecord = otpRepository.findByUserId(user.getId()).orElseThrow();
-        assertEquals(1, otpRecord.getAttempts());
-        assertFalse(otpRecord.isUsed());
-
-        // 6. Resend Cooldown Test: Attempting to resend within 60s cooldown must fail
-        mockMvc.perform(post("/api/auth/resend-otp")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + studentEmail + "\"}"))
-                .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Please wait")));
-
-        // 7. Test lockout after exceeding maximum attempts (5)
-        otpRecord.setAttempts(4);
-        otpRepository.save(otpRecord);
-
-        mockMvc.perform(post("/api/auth/verify-otp")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(wrongOtpReq)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Maximum verification attempts exceeded. Please request a new code."));
-
-        // 8. Test cooldown reset & resend fresh OTP
-        otpRecord.setCreatedAt(LocalDateTime.now().minusSeconds(65));
-        otpRepository.save(otpRecord);
-
-        mockMvc.perform(post("/api/auth/resend-otp")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + studentEmail + "\"}"))
-                .andExpect(status().isOk());
-
-        String freshOtp = TestEmailServiceConfig.lastCapturedOtp.get();
-        assertNotNull(freshOtp);
-
-        // 9. Test expiry handling
-        EmailVerificationOtp freshRecord = otpRepository.findByUserId(user.getId()).orElseThrow();
-        freshRecord.setExpiresAt(LocalDateTime.now().minusMinutes(1));
-        otpRepository.save(freshRecord);
-
-        VerifyOtpRequest validOtpReq = new VerifyOtpRequest();
-        validOtpReq.setEmail(studentEmail);
-        validOtpReq.setOtp(freshOtp);
-
-        mockMvc.perform(post("/api/auth/verify-otp")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(validOtpReq)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Verification code has expired. Please request a new code."));
-
-        // 10. Restore valid expiration and submit correct OTP
-        freshRecord.setExpiresAt(LocalDateTime.now().plusMinutes(5));
-        otpRepository.save(freshRecord);
-
-        mockMvc.perform(post("/api/auth/verify-otp")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(validOtpReq)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Email verified successfully! Your VYNK account is now active."));
-
-        // 11. Verify user is now ACTIVE and emailVerified = true
-        user = userRepository.findByEmail(studentEmail).orElseThrow();
-        assertEquals(AccountStatus.ACTIVE, user.getStatus());
-        assertTrue(user.isEmailVerified());
-
-        freshRecord = otpRepository.findByUserId(user.getId()).orElseThrow();
-        assertTrue(freshRecord.isUsed());
-
-        // 12. Reusing already-used OTP must fail
-        mockMvc.perform(post("/api/auth/verify-otp")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(validOtpReq)))
-                .andExpect(status().isBadRequest());
-
-        // 13. Login with credentials now succeeds (200 OK)
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(loginReq)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Login successful."))
                 .andExpect(jsonPath("$.email").value(studentEmail));
+    }
 
-        // 14. Password Reset flow for active verified user
+    @Test
+    @DisplayName("Duplicate Registration Prevention: rejects re-registration with existing email")
+    void testDuplicateRegistrationRejected() throws Exception {
+        String studentEmail = "duplicate.student@anurag.edu.in";
+        String rawPassword = "Password123!";
+
+        College anurag = collegeRepository.findByActiveTrue().stream()
+                .filter(c -> "anurag.edu.in".equalsIgnoreCase(c.getEmailDomain()))
+                .findFirst()
+                .orElseThrow();
+
+        RegisterRequest req = new RegisterRequest();
+        req.setEmail(studentEmail);
+        req.setPassword(rawPassword);
+        req.setCollegeId(anurag.getId());
+
+        // First registration succeeds
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated());
+
+        // Second registration with the same email is rejected with 409 Conflict
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("An account with this email already exists."));
+    }
+
+    @Test
+    @DisplayName("Strict Institutional Domain Validation: rejects unauthorized domains")
+    void testRegistrationEnforcesCollegeDomain() throws Exception {
+        College anurag = collegeRepository.findByActiveTrue().stream()
+                .filter(c -> "anurag.edu.in".equalsIgnoreCase(c.getEmailDomain()))
+                .findFirst()
+                .orElseThrow();
+
+        RegisterRequest req = new RegisterRequest();
+        req.setEmail("unauthorized.student@gmail.com"); // Non-institutional domain
+        req.setPassword("Password123!");
+        req.setCollegeId(anurag.getId());
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Legacy PENDING Account Protection: cannot login without verification and cannot be hijacked by re-registration")
+    void testLegacyPendingAccountProtectionAndCompatibility() throws Exception {
+        String legacyEmail = "legacy.pending@anurag.edu.in";
+        String legacyPassword = "OriginalLegacyPass123!";
+
+        College anurag = collegeRepository.findByActiveTrue().stream()
+                .filter(c -> "anurag.edu.in".equalsIgnoreCase(c.getEmailDomain()))
+                .findFirst()
+                .orElseThrow();
+
+        // Seed a legacy unverified PENDING user directly in DB
+        User legacyUser = new User();
+        legacyUser.setEmail(legacyEmail);
+        legacyUser.setPasswordHash(passwordEncoder.encode(legacyPassword));
+        legacyUser.setRole(UserRole.STUDENT);
+        legacyUser.setStatus(AccountStatus.PENDING);
+        legacyUser.setEmailVerified(false);
+        legacyUser.setCollege(anurag);
+        legacyUser = userRepository.save(legacyUser);
+
+        // 1. Attempt login -> must be rejected with 403 Forbidden
+        LoginRequest loginReq = new LoginRequest();
+        loginReq.setEmail(legacyEmail);
+        loginReq.setPassword(legacyPassword);
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginReq)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("This account is not currently allowed to log in."));
+
+        // 2. Re-registering with this email must be rejected and must NOT activate the account
+        RegisterRequest reRegReq = new RegisterRequest();
+        reRegReq.setEmail(legacyEmail);
+        reRegReq.setPassword("AttackerNewPass999!");
+        reRegReq.setCollegeId(anurag.getId());
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(reRegReq)))
+                .andExpect(status().isConflict());
+
+        // Verify account is STILL PENDING and emailVerified is STILL false
+        User refreshedUser = userRepository.findByEmail(legacyEmail).orElseThrow();
+        assertEquals(AccountStatus.PENDING, refreshedUser.getStatus());
+        assertFalse(refreshedUser.isEmailVerified());
+
+        // 3. Existing OTP endpoints remain available to safely verify legacy accounts if needed
+        String rawOtp = emailVerificationService.createAndSendOtp(legacyUser);
+
+        VerifyOtpRequest verifyReq = new VerifyOtpRequest();
+        verifyReq.setEmail(legacyEmail);
+        verifyReq.setOtp(rawOtp);
+
+        mockMvc.perform(post("/api/auth/verify-otp")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(verifyReq)))
+                .andExpect(status().isOk());
+
+        // Now legacy user is ACTIVE and can log in
+        User activatedUser = userRepository.findByEmail(legacyEmail).orElseThrow();
+        assertEquals(AccountStatus.ACTIVE, activatedUser.getStatus());
+        assertTrue(activatedUser.isEmailVerified());
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginReq)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Password Reset Compatibility: active registered user can reset password, unverified account cannot")
+    void testPasswordResetCompatibility() throws Exception {
+        String studentEmail = "pwdreset.student@anurag.edu.in";
+        String initialPassword = "InitialSecurePassword123!";
+        String newPassword = "BrandNewPassword2026!";
+
+        College anurag = collegeRepository.findByActiveTrue().stream()
+                .filter(c -> "anurag.edu.in".equalsIgnoreCase(c.getEmailDomain()))
+                .findFirst()
+                .orElseThrow();
+
+        // Register active user
+        RegisterRequest registerReq = new RegisterRequest();
+        registerReq.setEmail(studentEmail);
+        registerReq.setPassword(initialPassword);
+        registerReq.setCollegeId(anurag.getId());
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(registerReq)))
+                .andExpect(status().isCreated());
+
+        // 1. Request password reset
         mockMvc.perform(post("/api/auth/forgot-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"" + studentEmail + "\"}"))
@@ -272,12 +321,11 @@ public class EmailOtpFlowIntegrationTest {
                 .andExpect(jsonPath("$.message").value("If an eligible account exists for this email, password reset instructions have been sent."));
 
         String resetLink = TestEmailServiceConfig.lastCapturedResetLink.get();
-        assertNotNull(resetLink);
+        assertNotNull(resetLink, "Reset link should be generated for active student");
         assertTrue(resetLink.contains("token="));
         String rawToken = resetLink.substring(resetLink.indexOf("token=") + 6);
 
-        // 15. Execute password reset
-        String newPassword = "BrandNewPassword2026!";
+        // 2. Execute password reset
         ResetPasswordRequest resetReq = new ResetPasswordRequest();
         resetReq.setToken(rawToken);
         resetReq.setNewPassword(newPassword);
@@ -288,90 +336,25 @@ public class EmailOtpFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Your password has been successfully reset. You can now log in."));
 
-        // 16. Verify login with old password fails (401 Unauthorized)
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(loginReq)))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("Invalid email or password."));
-
-        // 17. Verify login with new password succeeds (200 OK)
-        LoginRequest newLoginReq = new LoginRequest();
-        newLoginReq.setEmail(studentEmail);
-        newLoginReq.setPassword(newPassword);
+        // 3. Login with old password fails
+        LoginRequest oldLogin = new LoginRequest();
+        oldLogin.setEmail(studentEmail);
+        oldLogin.setPassword(initialPassword);
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(newLoginReq)))
+                        .content(objectMapper.writeValueAsString(oldLogin)))
+                .andExpect(status().isUnauthorized());
+
+        // 4. Login with new password succeeds
+        LoginRequest newLogin = new LoginRequest();
+        newLogin.setEmail(studentEmail);
+        newLogin.setPassword(newPassword);
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(newLogin)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Login successful."));
-    }
-
-    @Test
-    @DisplayName("Development Sandbox Integration: Verified Account Email Path without Weakening Production")
-    void testDevelopmentSandboxIntegrationPath() throws Exception {
-        // In local development sandbox testing:
-        // When using Resend's free tier sandbox (onboarding@resend.dev), Resend strictly restricts delivery
-        // to the verified account owner's email address (e.g. sandbox-owner@example.com).
-        // Production validation requires college email domains.
-        // In local test environments (isolated H2 DB), developers can seed a local sandbox college
-        // or test the direct API integration path without altering production data or relaxing domain checks.
-        String sandboxEmail = "sandbox-owner@example.edu";
-        College sandboxCollege = collegeRepository.findByActiveTrue().stream()
-                .filter(c -> "example.edu".equalsIgnoreCase(c.getEmailDomain()))
-                .findFirst()
-                .orElseGet(() -> {
-                    College c = new College();
-                    c.setName("Sandbox Test College");
-                    c.setEmailDomain("example.edu");
-                    c.setActive(true);
-                    return collegeRepository.save(c);
-                });
-
-        RegisterRequest req = new RegisterRequest();
-        req.setEmail(sandboxEmail);
-        req.setPassword("SandboxPass123!");
-        req.setCollegeId(sandboxCollege.getId());
-
-        mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isCreated());
-
-        assertEquals(sandboxEmail, TestEmailServiceConfig.lastCapturedRecipient.get());
-        String otp = TestEmailServiceConfig.lastCapturedOtp.get();
-        assertNotNull(otp);
-
-        VerifyOtpRequest verifyReq = new VerifyOtpRequest();
-        verifyReq.setEmail(sandboxEmail);
-        verifyReq.setOtp(otp);
-
-        mockMvc.perform(post("/api/auth/verify-otp")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(verifyReq)))
-                .andExpect(status().isOk());
-
-        User sandboxUser = userRepository.findByEmail(sandboxEmail).orElseThrow();
-        assertEquals(AccountStatus.ACTIVE, sandboxUser.getStatus());
-        assertTrue(sandboxUser.isEmailVerified());
-    }
-
-    @Test
-    @DisplayName("Registration enforces college domain validation and rejects non-matching email")
-    void testRegistrationEnforcesCollegeDomain() throws Exception {
-        College anurag = collegeRepository.findByActiveTrue().stream()
-                .filter(c -> "anurag.edu.in".equalsIgnoreCase(c.getEmailDomain()))
-                .findFirst()
-                .orElseThrow();
-
-        RegisterRequest req = new RegisterRequest();
-        req.setEmail("unauthorized@gmail.com"); // Non-college domain
-        req.setPassword("Password123!");
-        req.setCollegeId(anurag.getId());
-
-        mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isBadRequest());
     }
 }

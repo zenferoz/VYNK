@@ -23,7 +23,6 @@ export function RegisterPage() {
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState('');
-  const [successResponse, setSuccessResponse] = useState(null);
 
   // Load active colleges on mount
   const loadColleges = React.useCallback(async () => {
@@ -90,14 +89,16 @@ export function RegisterPage() {
 
     try {
       setSubmitting(true);
-      const res = await authApi.register({
+      await authApi.register({
         email: formData.email,
         password: formData.password,
         collegeId: Number(formData.collegeId),
       });
-      setSuccessResponse(res);
-      navigate(`/verify-email?email=${encodeURIComponent(formData.email.trim())}`, {
-        state: { email: formData.email.trim() }
+      navigate('/login', {
+        state: {
+          successMessage: 'Registration successful! You can now log in.',
+          email: formData.email.trim(),
+        },
       });
     } catch (err) {
       if (err.details) {
@@ -108,38 +109,6 @@ export function RegisterPage() {
       setSubmitting(false);
     }
   };
-
-  // Verification Pending Screen upon successful registration
-  if (successResponse) {
-    return (
-      <div className="container-narrow page-enter" style={{ paddingTop: '3.5rem', paddingBottom: '3.5rem' }}>
-        <div className="card text-center">
-          <div style={{ marginBottom: '1.25rem' }}>
-            <span className="badge badge-dark">Step 1 of 2 Complete</span>
-          </div>
-          <h2 className="card-title">Check Your College Inbox</h2>
-          <p style={{ marginTop: '0.75rem', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
-            {successResponse.message || 'Registration successful. Verification code sent.'}
-          </p>
-          <div className="alert alert-info" style={{ marginTop: '1.5rem', textAlign: 'left' }}>
-            <div>
-              <strong>Next Step:</strong> We sent a 6-digit verification code to{' '}
-              <strong>{formData.email}</strong>. Enter the code to activate your account.
-            </div>
-          </div>
-          <div style={{ marginTop: '2rem' }}>
-            <Link
-              to={`/verify-email?email=${encodeURIComponent(formData.email.trim())}`}
-              state={{ email: formData.email.trim() }}
-              className="btn btn-primary btn-block"
-            >
-              Enter Verification Code &rarr;
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="container-narrow page-enter" style={{ paddingTop: '3rem', paddingBottom: '3.5rem' }}>

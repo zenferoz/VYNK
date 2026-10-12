@@ -26,7 +26,7 @@ public class RegistrationService {
             UserRepository userRepository,
             CollegeRepository collegeRepository,
             PasswordEncoder passwordEncoder,
-            EmailVerificationService emailVerificationService) {
+            @org.springframework.beans.factory.annotation.Autowired(required = false) EmailVerificationService emailVerificationService) {
         this.userRepository = userRepository;
         this.collegeRepository = collegeRepository;
         this.passwordEncoder = passwordEncoder;
@@ -39,32 +39,10 @@ public class RegistrationService {
                 .trim()
                 .toLowerCase(Locale.ROOT);
 
-        // Check if user already exists
+        // Check if user already exists (strictly reject duplicates, preserving existing/legacy accounts safely)
         User existingUser = userRepository.findByEmail(email).orElse(null);
         if (existingUser != null) {
-            if (existingUser.isEmailVerified() || existingUser.getStatus() != AccountStatus.PENDING) {
-                throw new IllegalArgumentException("An account with this email already exists.");
-            }
-
-            // Safe recovery/retry flow for unverified PENDING student
-            College college = collegeRepository.findById(request.getCollegeId())
-                    .orElseThrow(() -> new IllegalArgumentException("Invalid college ID."));
-
-            if (!college.isActive()) {
-                throw new IllegalArgumentException("This college is currently inactive.");
-            }
-
-            String emailDomain = email.substring(email.lastIndexOf('@') + 1);
-            if (!emailDomain.equalsIgnoreCase(college.getEmailDomain().trim())) {
-                throw new IllegalArgumentException("Please use your college email address.");
-            }
-
-            existingUser.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-            existingUser.setCollege(college);
-            User savedUser = userRepository.save(existingUser);
-
-            emailVerificationService.createAndSendOtp(savedUser);
-            return;
+            throw new IllegalArgumentException("An account with this email already exists.");
         }
 
         College college = collegeRepository
@@ -85,12 +63,10 @@ public class RegistrationService {
         user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setRole(UserRole.STUDENT);
-        user.setStatus(AccountStatus.PENDING);
-        user.setEmailVerified(false);
+        user.setStatus(AccountStatus.ACTIVE);
+        user.setEmailVerified(true);
         user.setCollege(college);
 
-        User savedUser = userRepository.save(user);
-
-        emailVerificationService.createAndSendOtp(savedUser);
+        userRepository.save(user);
     }
 }

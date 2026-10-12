@@ -94,7 +94,7 @@ public class AuthController {
                 .status(HttpStatus.CREATED)
                 .body(Map.of(
                         "message",
-                        "Registration successful. Email verification is pending."
+                        "Registration successful. You can now log in."
                 ));
     }
 

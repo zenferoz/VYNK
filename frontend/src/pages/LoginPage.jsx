@@ -12,10 +12,11 @@ export function LoginPage() {
   const location = useLocation();
 
   const [formData, setFormData] = useState({
-    email: '',
+    email: location.state?.email || '',
     password: '',
   });
 
+  const [infoMessage] = useState(location.state?.successMessage || '');
   const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -69,7 +70,7 @@ export function LoginPage() {
         setFormError('Invalid email or password. Please verify your credentials.');
       } else if (err.status === 403) {
         setFormError(
-          err.message || 'This account is not currently active. If you just registered, please verify your email first.'
+          err.message || 'This account is not currently active. Please contact support.'
         );
       } else {
         setFormError(err.message || 'Unable to sign in. Please try again.');
@@ -97,6 +98,7 @@ export function LoginPage() {
           </p>
         </div>
 
+        {infoMessage && !formError && <Alert type="success" message={infoMessage} />}
         {formError && <Alert type="error" message={formError} details={fieldErrors} />}
 
         <form onSubmit={handleSubmit} noValidate>
