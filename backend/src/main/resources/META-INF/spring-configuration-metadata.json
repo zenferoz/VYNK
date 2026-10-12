@@ -1,0 +1,196 @@
+{
+  "properties": [
+    {
+      "name": "vynk.session.cookie.secure",
+      "type": "java.lang.Boolean",
+      "description": "Fallback flag for session cookie secure attribute when VYNK_SESSION_COOKIE_SECURE is not set.",
+      "defaultValue": false
+    },
+    {
+      "name": "vynk.frontend.base-url",
+      "type": "java.lang.String",
+      "description": "Base URL for the frontend application, used in emails and CORS configuration.",
+      "defaultValue": "http://localhost:5173"
+    },
+    {
+      "name": "vynk.ratelimit.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Global toggle for in-memory sliding-window rate limiting.",
+      "defaultValue": true
+    },
+    {
+      "name": "vynk.ratelimit.login.max",
+      "type": "java.lang.Integer",
+      "description": "Maximum login attempts allowed within the configured window.",
+      "defaultValue": 10
+    },
+    {
+      "name": "vynk.ratelimit.login.window",
+      "type": "java.lang.Long",
+      "description": "Rate limit sliding window in seconds for login attempts.",
+      "defaultValue": 60
+    },
+    {
+      "name": "vynk.ratelimit.register.max",
+      "type": "java.lang.Integer",
+      "description": "Maximum registration requests allowed within the configured window.",
+      "defaultValue": 5
+    },
+    {
+      "name": "vynk.ratelimit.register.window",
+      "type": "java.lang.Long",
+      "description": "Rate limit sliding window in seconds for registration requests.",
+      "defaultValue": 60
+    },
+    {
+      "name": "vynk.ratelimit.resend.max",
+      "type": "java.lang.Integer",
+      "description": "Maximum email verification resend requests allowed within the configured window.",
+      "defaultValue": 3
+    },
+    {
+      "name": "vynk.ratelimit.resend.window",
+      "type": "java.lang.Long",
+      "description": "Rate limit sliding window in seconds for email verification resend requests.",
+      "defaultValue": 60
+    },
+    {
+      "name": "vynk.ratelimit.forgot.max",
+      "type": "java.lang.Integer",
+      "description": "Maximum forgot-password requests allowed within the configured window.",
+      "defaultValue": 3
+    },
+    {
+      "name": "vynk.ratelimit.forgot.window",
+      "type": "java.lang.Long",
+      "description": "Rate limit sliding window in seconds for forgot-password requests.",
+      "defaultValue": 60
+    },
+    {
+      "name": "vynk.ratelimit.reset.max",
+      "type": "java.lang.Integer",
+      "description": "Maximum reset-password requests allowed within the configured window.",
+      "defaultValue": 5
+    },
+    {
+      "name": "vynk.ratelimit.reset.window",
+      "type": "java.lang.Long",
+      "description": "Rate limit sliding window in seconds for reset-password requests.",
+      "defaultValue": 60
+    },
+    {
+      "name": "vynk.ratelimit.connections.max",
+      "type": "java.lang.Integer",
+      "description": "Maximum connection requests allowed within the configured window.",
+      "defaultValue": 20
+    },
+    {
+      "name": "vynk.ratelimit.connections.window",
+      "type": "java.lang.Long",
+      "description": "Rate limit sliding window in seconds for connection requests.",
+      "defaultValue": 60
+    },
+    {
+      "name": "vynk.ratelimit.messaging.max",
+      "type": "java.lang.Integer",
+      "description": "Maximum chat message sends allowed within the configured window.",
+      "defaultValue": 60
+    },
+    {
+      "name": "vynk.ratelimit.messaging.window",
+      "type": "java.lang.Long",
+      "description": "Rate limit sliding window in seconds for chat message sends.",
+      "defaultValue": 60
+    },
+    {
+      "name": "vynk.ratelimit.posts.max",
+      "type": "java.lang.Integer",
+      "description": "Maximum feed post creations allowed within the configured window.",
+      "defaultValue": 20
+    },
+    {
+      "name": "vynk.ratelimit.posts.window",
+      "type": "java.lang.Long",
+      "description": "Rate limit sliding window in seconds for feed post creations.",
+      "defaultValue": 60
+    },
+    {
+      "name": "vynk.ratelimit.reports.max",
+      "type": "java.lang.Integer",
+      "description": "Maximum safety reports allowed within the configured window.",
+      "defaultValue": 10
+    },
+    {
+      "name": "vynk.ratelimit.reports.window",
+      "type": "java.lang.Long",
+      "description": "Rate limit sliding window in seconds for safety reports.",
+      "defaultValue": 60
+    },
+    {
+      "name": "vynk.ratelimit.matching.max",
+      "type": "java.lang.Integer",
+      "description": "Maximum discovery/matching queries allowed within the configured window.",
+      "defaultValue": 30
+    },
+    {
+      "name": "vynk.ratelimit.matching.window",
+      "type": "java.lang.Long",
+      "description": "Rate limit sliding window in seconds for discovery/matching queries.",
+      "defaultValue": 60
+    },
+    {
+      "name": "vynk.ratelimit.community.max",
+      "type": "java.lang.Integer",
+      "description": "Maximum community creations allowed within the configured window.",
+      "defaultValue": 10
+    },
+    {
+      "name": "vynk.ratelimit.community.window",
+      "type": "java.lang.Long",
+      "description": "Rate limit sliding window in seconds for community creations.",
+      "defaultValue": 86400
+    },
+    {
+      "name": "vynk.ratelimit.discussions.max",
+      "type": "java.lang.Integer",
+      "description": "Maximum community discussion creations allowed within the configured window.",
+      "defaultValue": 30
+    },
+    {
+      "name": "vynk.ratelimit.discussions.window",
+      "type": "java.lang.Long",
+      "description": "Rate limit sliding window in seconds for community discussion creations.",
+      "defaultValue": 3600
+    },
+    {
+      "name": "vynk.ai.semantic.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Toggle for remote semantic inference service in candidate matching.",
+      "defaultValue": true
+    },
+    {
+      "name": "vynk.ai.semantic.service-url",
+      "type": "java.lang.String",
+      "description": "Endpoint URL for external semantic similarity inference microservice.",
+      "defaultValue": "http://127.0.0.1:8001"
+    },
+    {
+      "name": "vynk.ai.semantic.timeout-ms",
+      "type": "java.lang.Integer",
+      "description": "Timeout in milliseconds for semantic similarity HTTP calls.",
+      "defaultValue": 1500
+    },
+    {
+      "name": "vynk.files.upload-dir",
+      "type": "java.lang.String",
+      "description": "Filesystem directory path for storing uploaded user attachments.",
+      "defaultValue": "${user.home}/.vynk/uploads"
+    },
+    {
+      "name": "vynk.files.max-size-bytes",
+      "type": "java.lang.Long",
+      "description": "Maximum allowed file size in bytes for uploaded attachments.",
+      "defaultValue": 5242880
+    }
+  ]
+}
