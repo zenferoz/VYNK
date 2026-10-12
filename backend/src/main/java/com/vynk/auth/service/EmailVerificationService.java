@@ -128,7 +128,7 @@ public class EmailVerificationService {
     /**
      * Validates a student's submitted 6-digit OTP, enforcing expiration, attempt counts, and single-use.
      */
-    @Transactional
+    @Transactional(noRollbackFor = IllegalArgumentException.class)
     public void verifyOtp(String email, String rawOtp) {
         if (email == null || email.isBlank()) {
             throw new IllegalArgumentException("College email is required.");
