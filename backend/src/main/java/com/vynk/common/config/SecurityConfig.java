@@ -1,7 +1,10 @@
 
 package com.vynk.common.config;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -36,7 +39,24 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(frontendBaseUrl.replaceAll("/+$", ""), "http://localhost:5173"));
+
+        Set<String> origins = new LinkedHashSet<>();
+        // Explicitly allow production frontend origin
+        origins.add("https://frontend-surya-c640.vercel.app");
+        // Explicitly allow local development frontend
+        origins.add("http://localhost:5173");
+
+        // Parse any configured frontendBaseUrl (supports comma-separated origins)
+        if (frontendBaseUrl != null && !frontendBaseUrl.isBlank()) {
+            for (String origin : frontendBaseUrl.split(",")) {
+                String cleanOrigin = origin.trim().replaceAll("/+$", "");
+                if (!cleanOrigin.isEmpty()) {
+                    origins.add(cleanOrigin);
+                }
+            }
+        }
+
+        configuration.setAllowedOrigins(new ArrayList<>(origins));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of(
                 "Authorization",

@@ -62,8 +62,11 @@ public class CustomConfigurationPropertiesTest {
         assertEquals("10", environment.getProperty("vynk.resend.timeout-seconds"));
         assertEquals("false", environment.getProperty("vynk.resend.simulation-mode"));
 
+        // vynk.frontend.base-url
+        assertEquals("http://localhost:5173", environment.getProperty("vynk.frontend.base-url"));
+
         // vynk.otp.* properties (must have NO hardcoded fallback in production properties)
-        assertEquals("", environment.getProperty("vynk.otp.pepper"));
+        assertEquals("${VYNK_OTP_PEPPER:}", propertySource.getProperty("vynk.otp.pepper"));
         assertEquals("5", environment.getProperty("vynk.otp.expiry-minutes"));
         assertEquals("60", environment.getProperty("vynk.otp.resend-cooldown-seconds"));
         assertEquals("5", environment.getProperty("vynk.otp.max-attempts"));
