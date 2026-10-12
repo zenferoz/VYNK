@@ -15,7 +15,8 @@ FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
 
 # Create upload directory and dedicated non-root user
-RUN mkdir -p /app/uploads && \
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /app/uploads && \
     useradd -m -u 1001 vynkuser && \
     chown -R vynkuser:vynkuser /app
 
