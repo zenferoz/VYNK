@@ -1,0 +1,10 @@
+target/
+.mvn/
+.metadata/
+.settings/
+.classpath
+.project
+.factorypath
+.git
+.gitignore
+*.log
